@@ -1,0 +1,26 @@
+{
+  "manifest_version": 2,
+  "name": "Form Restorer",
+  "description": "Save or restore form values.",
+  "version": "0.9",
+  "icons": {
+      "32": "icon_32.png",
+      "48": "icon_48.png",
+      "128": "icon_128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["js/content_script.js"]
+    }
+  ],
+  "browser_action": {
+      "default_icon": "icon_32.png",
+      "default_title": "",
+      "default_popup": "popup.html"
+  },
+  "permissions": [
+      "tabs",
+      "downloads"
+  ]
+}
