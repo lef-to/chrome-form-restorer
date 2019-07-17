@@ -28,6 +28,29 @@ function getTextValue(element)
   return (typeof element.value === 'undefined') ? '' : element.value
 }
 
+function getInternalType(element)
+{
+    var tag = element.tagName.toLowerCase()
+
+    if (tag == 'input') {
+      var type = getInputType(element)
+      if (type == 'checkbox') {
+        return 'c'
+      } else if (type == 'radio') {
+        return 'r'
+      } else if (type == 'hidden') {
+        return 'h'
+      } else {
+        return 'i'
+      }
+    } else if (tag == 'select') {
+      return 's'
+    } else if (tag == 'textarea') {
+      return 't'
+    }
+    return ''
+}
+
 class Restorer {
   constructor(values = {}, excludeHidden = true)
   {
@@ -56,26 +79,21 @@ class Restorer {
       this.nameCount[name][type]++
     }
 
-    var list = document.getElementsByTagName('input')
-    for(var i = 0; i < list.length; i++) {
-      var item = list[i]
-
-      if (typeof item.name == 'undefined') {
-        continue
-      }
-
+    this.getElements('input')
+    .filter((item) => (typeof item.name !== 'undefined' && item.name !== ''))
+    .forEach((item) => {
       var name = item.name.toLowerCase()
       var type = getInputType(item)
       if (type == 'checkbox') {
         ccache[name] = 1
       } else if (type == 'radio') {
         rcache[name] = 1
-      } else if (type == 'hidden' && this.excludeHidden === false) {
+      } else if (type == 'hidden') {
         increment('h', name)
       } else {
         increment('i', name)
       }
-    }
+    })
 
     for (var name in ccache) {
       increment('c', name)
@@ -85,27 +103,19 @@ class Restorer {
       increment('r', name)
     }
 
-    var list = document.getElementsByTagName('select')
-    for(var i = 0; i < list.length; i++) {
-      var item = list[i]
-      if (typeof item.name == 'undefined') {
-        continue
-      }
-
+    this.getElements('select')
+    .filter((item) => (typeof item.name !== 'undefined' && item.name !== ''))
+    .forEach((item) => {
       var name = item.name.toLowerCase()
       increment('s', name)
-    }
+    })
 
-    var list = document.getElementsByTagName('textarea')
-    for(var i = 0; i < list.length; i++) {
-      var item = list[i]
-      if (typeof item.name == 'undefined') {
-        continue
-      }
-
+    this.getElements('textarea')
+    .filter((item) => (typeof item.name !== 'undefined' && item.name !== ''))
+    .forEach((item) => {
       var name = item.name.toLowerCase()
       increment('t', name)
-    }
+    })
   }
 
   getValues(element)
@@ -156,72 +166,74 @@ class Restorer {
   buildInternalNameFromElement(element)
   {
     var names = this.buildInternalNamesFromElement(element)
-    if (names.length === 0)
-      return ''
     return names[names.length - 1]
   }
 
   buildInternalNamesFromElement(element)
   {
-    var tag = element.tagName.toLowerCase()
-    var name = element.name.toLowerCase()
+    var ret = []
 
-    if (tag == 'input') {
-      var type = getInputType(element)
-      if (type == 'checkbox') {
-        return this.buildInternalNames('c', name)
-      } else if (type == 'radio') {
-        return this.buildInternalNames('r', name)
-      } else if (type == 'hidden' && this.excludeHidden === false) {
-        return this.buildInternalNames('h', name)
-      } else {
-        return this.buildInternalNames('i', name)
-      }
-    } else if (tag == 'select') {
-      return this.buildInternalNames('s', name)
-    } else if (tag == 'textarea') {
-      return this.buildInternalNames('t', name)
+    if (typeof element.id !== 'undefined' && element.id !== '') {
+      ret.push('#' + element.id)
     }
 
-    return []
+    if (typeof element.name !== 'undefined' && element.name !== '') {
+      var name = element.name.toLowerCase()
+      var type = getInternalType(element)
+
+      if (type in this.indexes === false) {
+        this.indexes[type] = {}
+      }
+
+      if (type == 'c' || type == 'r' || (name in this.indexes[type]) === false) {
+        this.indexes[type][name] = 0;
+      } else {
+        this.indexes[type][name]++;
+      }
+      var index = this.indexes[type][name]
+
+      ret.push(type + ':' + name + '.' + index)
+      if (index === 0) {
+        ret.push(type + ':' + name)
+      }
+
+      if (this.nameCount[name].total === this.nameCount[name][type]) {
+        ret.push(name + '.' + index)
+        if (index === 0) {
+          ret.push(name)
+        }
+      }
+    }
+
+    return ret
   }
 
-  buildInternalNames(type, name)
+  getElements(tag)
   {
-    if (typeof name === 'undefined' || name === '') {
-      return []
-    }
-
-    if (type in this.indexes === false) {
-      this.indexes[type] = {}
-    }
-
-    if (type == 'c' || type == 'r' || (name in this.indexes[type]) === false) {
-      this.indexes[type][name] = 0;
-    } else {
-      this.indexes[type][name]++;
-    }
-    var index = this.indexes[type][name]
-
-    var ret = []
-    ret.push(type + ':' + name + '.' + index)
-    if (index === 0) {
-      ret.push(type + ':' + name)
-    }
-    if (this.nameCount[name].total === this.nameCount[name][type]) {
-      ret.push(name + '.' + index)
-      if (index === 0) {
-        ret.push(name)
+    var list = document.getElementsByTagName(tag)
+    return Array.prototype.slice.call(list).filter((item) => {
+      if (typeof item.name === 'undefined' || item.name === '') {
+        if (typeof item.id === 'undefined' || item.id === '') {
+          return false
+        }
       }
-    }
-    return ret
+
+      if (tag == 'input') {
+        var type = getInputType(item)
+        if (type == 'file')
+          return false
+
+        if (type == 'hidden' && this.excludeHidden)
+          return false
+        }
+
+      return true
+    })
   }
 
   applyInput()
   {
-    var list = document.getElementsByTagName('input')
-    for (var i = 0; i < list.length; i++) {
-      var item = list[i]
+    this.getElements('input').forEach((item) => {
       var type = getInputType(item)
 
       if (type == 'checkbox' || type == 'radio') {
@@ -231,18 +243,15 @@ class Restorer {
         } else {
           item.checked = true
         }
-      } else if (type != 'hidden' || this.excludeHidden === false) {
+      } else {
         item.value = this.getValue(item)
       }
-    }
+    })
   }
 
   applySelect()
   {
-    var list = document.getElementsByTagName('select')
-    for (var i = 0; i < list.length; i++) {
-      var item = list[i]
-
+    this.getElements('select').forEach((item) => {
       var values = this.getValues(item)
       var options = item.options
       for (var n = 0; n < options.length; n++) {
@@ -255,21 +264,19 @@ class Restorer {
           option.selected = true
         }
       }
-    }
+    })
   }
 
   applyTextArea()
   {
-    var list = document.getElementsByTagName('textarea')
-    for (var i = 0; i < list.length; i++) {
-      var item = list[i]
-
+    this.getElements('textarea').forEach((item) => {
       item.value = this.getValue(item)
-    }
+    })
   }
 
   apply()
   {
+    this.indexes = {}
     this.applyInput()
     this.applySelect()
     this.applyTextArea()
@@ -277,36 +284,26 @@ class Restorer {
 
   collectInput()
   {
-    var list = document.getElementsByTagName('input')
-    for (var i = 0; i < list.length; i++) {
-      var item = list[i]
+    this.getElements('input').forEach((item) => {
       var type = getInputType(item)
-
       var name = this.buildInternalNameFromElement(item)
-      if (name === '')
-        continue
 
       if (type == 'checkbox' || type == 'radio') {
         if (item.checked) {
           var value = getCheckedValue(item)
           this.setValue(name, item.value)
         }
-      } else if (type != 'hidden' || this.excludeHidden === false) {
+      } else {
         var value = getTextValue(item)
         this.setValue(name, value)
       }
-    }
+    })
   }
 
   collectSelect()
   {
-    var list = document.getElementsByTagName('select')
-    for (var i = 0; i < list.length; i++) {
-      var item = list[i]
-
+    this.getElements('select').forEach((item) => {
       var name = this.buildInternalNameFromElement(item)
-      if (name === '')
-        continue
 
       var options = item.options
       for (var n = 0; n < options.length; n++) {
@@ -317,22 +314,17 @@ class Restorer {
           this.setValue(name, value)
         }
       }
-    }
+    })
   }
 
   collectTextarea()
   {
-    var list = document.getElementsByTagName('textarea')
-    for (var i = 0; i < list.length; i++) {
-      var item = list[i]
-
+    this.getElements('textarea').forEach((item) => {
       var name = this.buildInternalNameFromElement(item)
-      if (name === '')
-        continue
 
       var value = getTextValue(item)
       this.setValue(name, value)
-    }
+    })
   }
 
   collect()
