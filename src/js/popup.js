@@ -17,10 +17,19 @@ document.addEventListener("DOMContentLoaded", function(ev) {
             url: response.url,
             filename: "form.json",
             saveAs: true
+          }, function (id) {
+            var listener = (delta) => {
+              if (delta.id === id && typeof delta.state !== 'undefined') {
+                if (delta.state.current === 'interrupted' || delta.state.current === 'complete') {
+                  chrome.downloads.onChanged.removeListener(listener)
+                  window.close()
+                }
+              }
+            }
+            chrome.downloads.onChanged.addListener(listener)
           });
         }
       });
-      console.log('send')
     });
   });
 
@@ -58,6 +67,7 @@ document.addEventListener("DOMContentLoaded", function(ev) {
 
         chrome.tabs.sendMessage(tabs[0].id, msg, function (response) {
           console.log('load done')
+          window.close()
         })
       })
     }
