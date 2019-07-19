@@ -56,8 +56,8 @@ class Restorer {
   {
     this.values = values
     this.excludeHidden = excludeHidden
-    this.indexes = {}
-    this.nameCount = {}
+    this.indexes = { n: {}, c: {}, r: {} }
+    this.nameCache = {}
 
     this.init()
   }
@@ -67,16 +67,11 @@ class Restorer {
     var ccache = {};
     var rcache = {};
 
-    var increment = (type, name) => {
-      if (name in this.nameCount === false) {
-        this.nameCount[name] = { total: 0 }
+    var increment = (name) => {
+      if (name in this.nameCache === false) {
+        this.nameCache[name] = 0
       }
-      this.nameCount[name].total++
-
-      if (type in this.nameCount[name] === false) {
-        this.nameCount[name][type] = 0
-      }
-      this.nameCount[name][type]++
+      this.nameCache[name]++
     }
 
     this.getElements('input')
@@ -88,64 +83,64 @@ class Restorer {
         ccache[name] = 1
       } else if (type == 'radio') {
         rcache[name] = 1
-      } else if (type == 'hidden') {
-        increment('h', name)
       } else {
-        increment('i', name)
+        increment(name)
       }
     })
 
     for (var name in ccache) {
-      increment('c', name)
+      increment(name)
     }
 
     for (var name in rcache) {
-      increment('r', name)
+      increment(name)
     }
 
     this.getElements('select')
     .filter((item) => (typeof item.name !== 'undefined' && item.name !== ''))
     .forEach((item) => {
       var name = item.name.toLowerCase()
-      increment('s', name)
+      increment(name)
     })
 
     this.getElements('textarea')
     .filter((item) => (typeof item.name !== 'undefined' && item.name !== ''))
     .forEach((item) => {
       var name = item.name.toLowerCase()
-      increment('t', name)
+      increment(name)
     })
   }
 
-  getValues(element)
+  getValues(names)
   {
-    var names = this.buildInternalNamesFromElement(element)
+    for (var i = 0; i < names.length; i++) {
+      var name = names[i]
+      if (name in this.values) {
+        var ret = this.values[name]
+        if (Array.isArray(ret) === false) {
+          ret = [ ret ]
+        }
+        return ret.filter((v) => v !== '')
+      }
+    }
+
+    return null 
+  }
+
+  getValue(names)
+  {
     for (var i = 0; i < names.length; i++) {
       var name = names[i]
       if (name in this.values) {
         var ret = this.values[name]
         if (Array.isArray(ret)) {
+          return (ret.length) ? ret[0] : ''
+        } else {
           return ret
         }
-        return [ ret ]
       }
     }
-  }
-
-  getValue(element)
-  {
-    var names = this.buildInternalNamesFromElement(element)
-    for (var i = 0; i < names.length; i++) {
-      var name = names[i]
-      if (name in this.values) {
-        var ret = this.values[name]
-        if (Array.isArray(ret) && ret.length > 0) {
-          return ret[0]
-        }
-        return ret
-      }
-    }
+    return null
   }
 
   setValue(name, value)
@@ -154,10 +149,17 @@ class Restorer {
       return
 
     if (name in this.values) {
-      if (!Array.isArray(this.values[name])) {
-        this.values[name] = [ this.values[name] ]
+      if (this.values[name] === '') {
+        this.values[name] = value
+        return
       }
-      this.values[name].push(value)
+
+      if (value !== '') {
+        if (!Array.isArray(this.values[name])) {
+          this.values[name] = [ this.values[name] ]
+        }
+        this.values[name].push(value)
+      }
     } else {
       this.values[name] = value
     }
@@ -169,39 +171,68 @@ class Restorer {
     return names[names.length - 1]
   }
 
+  makeIndexedName(name, index)
+  {
+    var prefix = ''
+
+    while (true) {
+      var ret = name + '.' + prefix + index
+      if (ret in this.nameCache === false)
+        return ret
+
+      prefix += '0'
+    }
+  }
+
+  makeIdName(name)
+  {
+    var prefix = '#'
+
+    while (true) {
+      var ret = prefix + name
+      if (ret in this.nameCache === false)
+        return ret
+
+      prefix += '#'
+    }
+  }
+
   buildInternalNamesFromElement(element)
   {
     var ret = []
 
     if (typeof element.id !== 'undefined' && element.id !== '') {
-      ret.push('#' + element.id)
+      ret.push(this.makeIdName(element.id))
     }
 
     if (typeof element.name !== 'undefined' && element.name !== '') {
       var name = element.name.toLowerCase()
       var type = getInternalType(element)
 
-      if (type in this.indexes === false) {
-        this.indexes[type] = {}
-      }
-
-      if (type == 'c' || type == 'r' || (name in this.indexes[type]) === false) {
-        this.indexes[type][name] = 0;
-      } else {
-        this.indexes[type][name]++;
-      }
-      var index = this.indexes[type][name]
-
-      ret.push(type + ':' + name + '.' + index)
-      if (index === 0) {
-        ret.push(type + ':' + name)
-      }
-
-      if (this.nameCount[name].total === this.nameCount[name][type]) {
-        ret.push(name + '.' + index)
-        if (index === 0) {
-          ret.push(name)
+      var index = 0
+      if (type == 'c' || type == 'r') {
+        if (name in this.indexes[type] === false) {
+          if (name in this.indexes.n === false) {
+            this.indexes.n[name] = 0
+          } else {
+            this.indexes.n[name]++
+          }
+          this.indexes[type][name] = this.indexes.n[name]
         }
+        index = this.indexes[type][name]
+      } else {
+        if (name in this.indexes.n === false) {
+          this.indexes.n[name] = 0
+        } else {
+          this.indexes.n[name]++
+        }
+
+        index = this.indexes.n[name]
+      }
+
+      ret.push(this.makeIndexedName(name, index))
+      if (index === 0) {
+        ret.push(name)
       }
     }
 
@@ -222,10 +253,10 @@ class Restorer {
         var type = getInputType(item)
         if (type == 'file' || type == 'submit' || type == 'reset' || type == 'image' || type == 'button')
           return false
-
+        
         if (type == 'hidden' && this.excludeHidden)
           return false
-        }
+      }
 
       return true
     })
@@ -234,17 +265,22 @@ class Restorer {
   applyInput()
   {
     this.getElements('input').forEach((item) => {
+      var names = this.buildInternalNamesFromElement(item)
       var type = getInputType(item)
 
       if (type == 'checkbox' || type == 'radio') {
-        var values = this.getValues(item)
-        if (values.indexOf(getCheckedValue(item)) === -1) {
-          item.checked = false
-        } else {
-          item.checked = true
+        var values = this.getValues(names)
+        if (values !== null) {
+          if (values.indexOf(getCheckedValue(item)) === -1) {
+            item.checked = false
+          } else {
+            item.checked = true
+          }
         }
       } else {
-        item.value = this.getValue(item)
+        var value = this.getValue(names)
+        if (value !== null)
+          item.value = value
       }
     })
   }
@@ -252,16 +288,22 @@ class Restorer {
   applySelect()
   {
     this.getElements('select').forEach((item) => {
-      var values = this.getValues(item)
-      var options = item.options
-      for (var n = 0; n < options.length; n++) {
-        var option = options[n]
-        var value = getOptionValue(option)
+      var names = this.buildInternalNamesFromElement(item)
+      var values = this.getValues(names)
 
-        if (values.indexOf(value) === -1) {
-          option.selected = false
-        } else {
-          option.selected = true
+      if (values !== null) {
+        var options = item.options
+        if (options) {
+          for (var n = 0; n < options.length; n++) {
+            var option = options[n]
+            var value = getOptionValue(option)
+
+            if (values.indexOf(value) === -1) {
+              option.selected = false
+            } else {
+              option.selected = true
+            }
+          }
         }
       }
     })
@@ -270,13 +312,16 @@ class Restorer {
   applyTextArea()
   {
     this.getElements('textarea').forEach((item) => {
-      item.value = this.getValue(item)
+      var names = this.buildInternalNamesFromElement(item)
+      var value = this.getValue(names)
+      if (value !== null)
+        item.value = value
     })
   }
 
   apply()
   {
-    this.indexes = {}
+    this.indexes = { n: {}, c: {}, r: {} }
     this.applyInput()
     this.applySelect()
     this.applyTextArea()
@@ -285,15 +330,17 @@ class Restorer {
   collectInput()
   {
     this.getElements('input').forEach((item) => {
-      var type = getInputType(item)
       var name = this.buildInternalNameFromElement(item)
+      var type = getInputType(item)
 
       if (type == 'checkbox' || type == 'radio') {
         if (item.checked) {
           var value = getCheckedValue(item)
           this.setValue(name, item.value)
+        } else {
+          this.setValue(name, '')
         }
-      } else {
+      } else if (type != 'hidden' || !this.excludeHidden) {
         var value = getTextValue(item)
         this.setValue(name, value)
       }
@@ -306,12 +353,14 @@ class Restorer {
       var name = this.buildInternalNameFromElement(item)
 
       var options = item.options
-      for (var n = 0; n < options.length; n++) {
-        var option = options[n]
+      if (options) {
+        for (var n = 0; n < options.length; n++) {
+          var option = options[n]
 
-        if (option.selected) {
-          var value = getOptionValue(option)
-          this.setValue(name, value)
+          if (option.selected) {
+            var value = getOptionValue(option)
+            this.setValue(name, value)
+          }
         }
       }
     })
@@ -329,7 +378,7 @@ class Restorer {
 
   collect()
   {
-    this.indexes = {}
+    this.indexes = { n: {}, c: {}, r: {} }
     this.collectInput()
     this.collectSelect()
     this.collectTextarea()
@@ -342,7 +391,7 @@ chrome.runtime.onMessage.addListener(
       var restorer = new Restorer()
       restorer.collect()
 
-      var url = URL.createObjectURL(new Blob([JSON.stringify(restorer.values, null, '  ')], {type: 'application/json'}))
+      var url = URL.createObjectURL(new Blob([JSON.stringify(restorer.values, null, '  ')], { type: 'application/json' }))
       sendResponse({
         url: url
       })
