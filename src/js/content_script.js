@@ -220,7 +220,7 @@ class Restorer {
 
       if (tag == 'input') {
         var type = getInputType(item)
-        if (type == 'file')
+        if (type == 'file' || type == 'submit' || type == 'reset' || type == 'image' || type == 'button')
           return false
 
         if (type == 'hidden' && this.excludeHidden)
