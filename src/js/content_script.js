@@ -230,9 +230,18 @@ class Restorer {
         index = this.indexes.n[name]
       }
 
-      ret.push(this.makeIndexedName(name, index))
       if (index === 0) {
-        ret.push(name)
+        if (name in this.nameCache && this.nameCache[name] > 1) {
+          ret.push(name)
+        }
+      }
+
+      ret.push(this.makeIndexedName(name, index))
+
+      if (index === 0) {
+        if (name in this.nameCache === false || this.nameCache[name] === 1) {
+          ret.push(name)
+        }
       }
     }
 
