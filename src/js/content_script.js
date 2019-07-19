@@ -360,17 +360,22 @@ class Restorer {
   {
     this.getElements('select').forEach((item) => {
       var name = this.buildInternalNameFromElement(item)
+      var found = false
 
       var options = item.options
-      if (options) {
+      if (options && options.length) {
         for (var n = 0; n < options.length; n++) {
           var option = options[n]
 
           if (option.selected) {
-            var value = getOptionValue(option)
-            this.setValue(name, value)
+            this.setValue(name, getOptionValue(option))
+            found = true
           }
         }
+      }
+
+      if (found === false) {
+        this.setValue(name, '')
       }
     })
   }
