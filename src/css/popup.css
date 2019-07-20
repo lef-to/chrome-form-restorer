@@ -2,12 +2,33 @@ body {
   width: 300px;
 }
 
+h1 {
+  color: #13419b;
+}
+
 button {
-  width: 100%;
+  width: 46%;
   border-radius: .25rem;
   font-size: 1rem;
   padding: .4rem .7rem;
   line-height: 1.5;
+  float: left;
+  margin: 10px 2%;
+  cursor: pointer;
+  font-weight: bold;
+}
+button:hover {
+  opacity: 0.7;
+}
+
+#load {
+  background: #5e9bee;
+  color: #1655c9;
+}
+
+#save {
+  background: #ee573c;
+  color: #9c100f;
 }
 
 #upload {
