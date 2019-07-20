@@ -277,6 +277,8 @@ class Restorer {
       var names = this.buildInternalNamesFromElement(item)
       var type = getInputType(item)
 
+      this.triggerEvent(item,'focus')
+
       if (type == 'checkbox' || type == 'radio') {
         var values = this.getValues(names)
         if (values !== null) {
@@ -291,6 +293,9 @@ class Restorer {
         if (value !== null)
           item.value = value
       }
+
+      this.triggerEvent(item,'click')
+      this.triggerEvent(item,'blur')
     })
   }
 
@@ -299,6 +304,8 @@ class Restorer {
     this.getElements('select').forEach((item) => {
       var names = this.buildInternalNamesFromElement(item)
       var values = this.getValues(names)
+
+      this.triggerEvent(item,'focus')
 
       if (values !== null) {
         var options = item.options
@@ -315,6 +322,9 @@ class Restorer {
           }
         }
       }
+
+      this.triggerEvent(item,'change')
+      this.triggerEvent(item,'blur')
     })
   }
 
@@ -323,8 +333,14 @@ class Restorer {
     this.getElements('textarea').forEach((item) => {
       var names = this.buildInternalNamesFromElement(item)
       var value = this.getValue(names)
+
+      this.triggerEvent(item,'focus')
+
       if (value !== null)
         item.value = value
+
+      this.triggerEvent(item,'keypress')
+      this.triggerEvent(item,'blur')
     })
   }
 
@@ -396,6 +412,20 @@ class Restorer {
     this.collectInput()
     this.collectSelect()
     this.collectTextarea()
+  }
+
+  triggerEvent(element, event)
+  {
+    if (document.createEvent) {
+        // IE以外
+        var evt = document.createEvent("HTMLEvents");
+        evt.initEvent(event, true, true ); // event type, bubbling, cancelable
+        return element.dispatchEvent(evt);
+    } else {
+        // IE
+        var evt = document.createEventObject();
+        return element.fireEvent("on"+event, evt)
+    }
   }
 }
 
