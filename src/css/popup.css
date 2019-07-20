@@ -13,3 +13,7 @@ button {
 #upload {
   display: none;
 }
+
+#error {
+  color: red;
+}

@@ -5,6 +5,7 @@ document.addEventListener("DOMContentLoaded", function(ev) {
   var saveBtn = document.getElementById('save')
   var loadBtn = document.getElementById('load')
   var uploadInput = document.getElementById('upload')
+  var errorMeg = document.getElementById('error')
 
   saveBtn.addEventListener('click', function(ev) {
     chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
@@ -53,6 +54,7 @@ document.addEventListener("DOMContentLoaded", function(ev) {
       } catch (ex) {
         // TODO parse error
         console.log('parse error')
+        errorMeg.innerText = 'parse error'
         return
       }
 
@@ -75,6 +77,7 @@ document.addEventListener("DOMContentLoaded", function(ev) {
     reader.onerror = function (ev) {
       // TODO read error
       console.log('read error')
+      errorMeg.innerText = 'read error'
     }
 
     reader.readAsText(file)
