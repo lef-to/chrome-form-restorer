@@ -64,6 +64,11 @@ class Restorer {
 
   init()
   {
+    this.updateNameCache(document)
+  }
+
+  updateNameCache(doc)
+  {
     var ccache = {};
     var rcache = {};
 
@@ -74,7 +79,7 @@ class Restorer {
       this.nameCache[name]++
     }
 
-    this.getElements('input')
+    this.getElements(doc, 'input')
     .filter((item) => (typeof item.name !== 'undefined' && item.name !== ''))
     .forEach((item) => {
       var name = item.name.toLowerCase()
@@ -96,18 +101,22 @@ class Restorer {
       increment(name)
     }
 
-    this.getElements('select')
+    this.getElements(doc, 'select')
     .filter((item) => (typeof item.name !== 'undefined' && item.name !== ''))
     .forEach((item) => {
       var name = item.name.toLowerCase()
       increment(name)
     })
 
-    this.getElements('textarea')
+    this.getElements(doc, 'textarea')
     .filter((item) => (typeof item.name !== 'undefined' && item.name !== ''))
     .forEach((item) => {
       var name = item.name.toLowerCase()
       increment(name)
+    })
+
+    this.getFrameElements(doc).forEach((f) => {
+      this.updateNameCache(f.contentDocument)
     })
   }
 
@@ -124,7 +133,7 @@ class Restorer {
       }
     }
 
-    return null 
+    return null
   }
 
   getValue(names)
@@ -248,9 +257,22 @@ class Restorer {
     return ret
   }
 
-  getElements(tag)
+  getFrameElements(doc)
   {
-    var list = document.getElementsByTagName(tag)
+    var frames = Array.prototype.slice.call(doc.getElementsByTagName('frame')).filter((item) => {
+      return item.contentDocument
+    })
+
+    var iframes = Array.prototype.slice.call(doc.getElementsByTagName('iframe')).filter((item) => {
+      return item.contentDocument
+    })
+
+    return frames.concat(iframes);
+  }
+
+  getElements(doc, tag)
+  {
+    var list = doc.getElementsByTagName(tag)
     return Array.prototype.slice.call(list).filter((item) => {
       if (typeof item.name === 'undefined' || item.name === '') {
         if (typeof item.id === 'undefined' || item.id === '') {
@@ -262,7 +284,7 @@ class Restorer {
         var type = getInputType(item)
         if (type == 'file' || type == 'submit' || type == 'reset' || type == 'image' || type == 'button')
           return false
-        
+
         if (type == 'hidden' && this.excludeHidden)
           return false
       }
@@ -271,13 +293,13 @@ class Restorer {
     })
   }
 
-  applyInput()
+  applyInput(doc)
   {
-    this.getElements('input').forEach((item) => {
+    this.getElements(doc, 'input').forEach((item) => {
       var names = this.buildInternalNamesFromElement(item)
       var type = getInputType(item)
 
-      this.triggerEvent(item,'focus')
+      this.triggerEvent(doc, item, 'focus')
 
       if (type == 'checkbox' || type == 'radio') {
         var values = this.getValues(names)
@@ -294,18 +316,18 @@ class Restorer {
           item.value = value
       }
 
-      this.triggerEvent(item,'click')
-      this.triggerEvent(item,'blur')
+      this.triggerEvent(doc, item, 'click')
+      this.triggerEvent(doc, item, 'blur')
     })
   }
 
-  applySelect()
+  applySelect(doc)
   {
-    this.getElements('select').forEach((item) => {
+    this.getElements(doc, 'select').forEach((item) => {
       var names = this.buildInternalNamesFromElement(item)
       var values = this.getValues(names)
 
-      this.triggerEvent(item,'focus')
+      this.triggerEvent(doc, item, 'focus')
 
       if (values !== null) {
         var options = item.options
@@ -323,38 +345,47 @@ class Restorer {
         }
       }
 
-      this.triggerEvent(item,'change')
-      this.triggerEvent(item,'blur')
+      this.triggerEvent(doc, item, 'change')
+      this.triggerEvent(doc, item, 'blur')
     })
   }
 
-  applyTextArea()
+  applyTextArea(doc)
   {
-    this.getElements('textarea').forEach((item) => {
+    this.getElements(doc, 'textarea').forEach((item) => {
       var names = this.buildInternalNamesFromElement(item)
       var value = this.getValue(names)
 
-      this.triggerEvent(item,'focus')
+      this.triggerEvent(doc, item,'focus')
 
       if (value !== null)
         item.value = value
 
-      this.triggerEvent(item,'keypress')
-      this.triggerEvent(item,'blur')
+      this.triggerEvent(doc, item,'keypress')
+      this.triggerEvent(doc, item,'blur')
     })
   }
 
   apply()
   {
     this.indexes = { n: {}, c: {}, r: {} }
-    this.applyInput()
-    this.applySelect()
-    this.applyTextArea()
+    this.applyDocument(document)
   }
 
-  collectInput()
+  applyDocument(doc)
   {
-    this.getElements('input').forEach((item) => {
+    this.applyInput(doc)
+    this.applySelect(doc)
+    this.applyTextArea(doc)
+
+    this.getFrameElements(doc).forEach((f) => {
+      this.applyDocument(f.contentDocument)
+    })
+  }
+
+  collectInput(doc)
+  {
+    this.getElements(doc, 'input').forEach((item) => {
       var name = this.buildInternalNameFromElement(item)
       var type = getInputType(item)
 
@@ -372,9 +403,9 @@ class Restorer {
     })
   }
 
-  collectSelect()
+  collectSelect(doc)
   {
-    this.getElements('select').forEach((item) => {
+    this.getElements(doc, 'select').forEach((item) => {
       var name = this.buildInternalNameFromElement(item)
       var found = false
 
@@ -396,9 +427,9 @@ class Restorer {
     })
   }
 
-  collectTextarea()
+  collectTextarea(doc)
   {
-    this.getElements('textarea').forEach((item) => {
+    this.getElements(doc, 'textarea').forEach((item) => {
       var name = this.buildInternalNameFromElement(item)
 
       var value = getTextValue(item)
@@ -409,22 +440,37 @@ class Restorer {
   collect()
   {
     this.indexes = { n: {}, c: {}, r: {} }
-    this.collectInput()
-    this.collectSelect()
-    this.collectTextarea()
+
+    this.collectDocuement(document)
   }
 
-  triggerEvent(element, event)
+  collectDocuement(doc)
   {
-    if (document.createEvent) {
-        // IE以外
-        var evt = document.createEvent("HTMLEvents");
-        evt.initEvent(event, true, true ); // event type, bubbling, cancelable
-        return element.dispatchEvent(evt);
-    } else {
-        // IE
-        var evt = document.createEventObject();
-        return element.fireEvent("on"+event, evt)
+    this.collectInput(doc)
+    this.collectSelect(doc)
+    this.collectTextarea(doc)
+
+    this.getFrameElements(doc).forEach((f) => {
+      this.collectDocuement(f.contentDocument)
+    })
+  }
+
+  triggerEvent(doc, element, event)
+  {
+    if (doc.createEvent) {
+      var evt = doc.createEvent("HTMLEvents");
+      var bubbling = true;
+      var cancelable = true;
+
+      if (event === 'change') {
+        cancelable = false;
+      } else if (event === 'focus' || event === 'blur') {
+        bubbling = false;
+        cancelable = false;
+      }
+
+      evt.initEvent(event, bubbling, cancelable);
+      return element.dispatchEvent(evt);
     }
   }
 }
